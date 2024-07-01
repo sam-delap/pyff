@@ -1,6 +1,8 @@
 from datetime import date
 from pathlib import Path
 import requests
+import time
+
 from bs4 import BeautifulSoup
 import pandas as pd
 
@@ -16,20 +18,25 @@ class Team:
                    'offensive_coordinator',
                    'total_plays',
                    'run_percent',
-                   'pass_percent']
+                   'run_plays',
+                   'pass_percent',
+                   'pass_plays']
         dtypes = {
                 'head_coach': 'string',
                 'offensive_coordinator': 'string',
                 'total_plays': 'int32',
                 'run_percent': 'float32',
-                'pass_percent': 'float32'
+                'run_plays': 'int32',
+                'pass_percent': 'float32',
+                'pass_plays': 'int32'
         }
         self.historical_data = pd.DataFrame(index=index, columns=columns) 
         for year in self.historical_data.index:
             team_url = f'https://pro-football-reference.com/teams/{team_name}/{year}.htm'
             response = requests.get(team_url)
+            time.sleep(6)
             if response.status_code != 200:
-                raise HTTPError('Request unsuccessful')
+                raise requests.HTTPError(f'Request unsuccessful. Response code: {response.status_code}')
             doc = BeautifulSoup(response.text, 'html.parser')
             if year != self.current_year:
                 run_plays = int(doc.find('tbody').find('tr').find(attrs = {'data-stat': 'rush_att'}).text)
@@ -38,6 +45,8 @@ class Team:
                 self.historical_data.loc[year, 'total_plays'] = total_plays
                 self.historical_data.loc[year, 'run_percent'] = round(run_plays / total_plays * 100, 2)
                 self.historical_data.loc[year, 'pass_percent'] = round(pass_plays / total_plays * 100, 2)
+                self.historical_data.loc[year, 'run_plays'] = run_plays
+                self.historical_data.loc[year, 'pass_plays'] = pass_plays
             for p in doc.find_all('p'):
                 if "Coach:" in p.get_text():
                     self.historical_data.loc[year, 'head_coach'] = p.find('a').get_text()
@@ -85,5 +94,10 @@ class Team:
     def save_projections(self, filename: str):
         """Saves your team-level projection to a sheet"""
         file_path = Path(filename)
-        file_path.parent.mkdir(parents=True)
-        self.historical_data.loc[self.current_year, :].to_excel(filename, sheet_name=self.team_name.capitalize())
+        if not file_path.parent.exists: 
+            file_path.parent.mkdir(parents=True)
+            self.historical_data.loc[self.current_year, :].to_excel(filename, sheet_name=self.team_name.capitalize())
+        else:
+            existing_data = pd.read_excel(filename)
+            df_combined = pd.concat([existing_data, self.historical_data.loc[self.current_year, :]])
+            df_combined.to_excel(filename, sheet_name=self.team_name.capitalize())
