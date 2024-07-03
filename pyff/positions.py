@@ -85,8 +85,8 @@ class QB:
         need_answer = True
         while need_answer:
             try:
-                int_perc = input('Estimated int % for 2024: ')
-                int_perc = float(int_perc)
+                int_percent = input('Estimated int % for 2024: ')
+                int_percent = float(int_percent)
                 need_answer = False
             except ValueError:
                 print('This is not a valid decimal!')
@@ -115,18 +115,24 @@ class QB:
             except ValueError:
                 print('This is not a valid decimal!')
 
-        self.historical_data.loc[self.current_year, 'int %'] = int_perc
-        self.historical_data.loc[self.current_year, 'rush_percent'] = rush_percent
-        self.historical_data.loc[self.current_year, 'ypc'] = ypc
-        self.historical_data.loc[self.current_year, 'tds/rush_yard'] = td_yard_ratio
+        self.int_percent = int_percent
+        self.rush_percent = rush_percent
+        self.ypc = ypc
+        self.td_yard_ratio = td_yard_ratio
 
     def save_projections(self, filename: str):
         """Saves your team-level projection to a sheet"""
         file_path = Path(filename)
+        formatted_data = pd.DataFrame()
+        formatted_data['Player Name'] = self.player_name
+        formatted_data['Interception %'] = self.int_percent
+        formatted_data['Rush Share'] = self.rush_percent
+        formatted_data['Yards/Carry'] = self.ypc
+        formatted_data['TDs/Yard'] = self.td_yard_ratio
         if not file_path.parent.exists: 
             file_path.parent.mkdir(parents=True)
-            self.historical_data.loc[self.current_year, :].to_excel(filename, sheet_name=self.team.team_name.capitalize())
+            formatted_data.to_excel(filename, sheet_name=self.team.team_name.capitalize(), index=False)
         else:
             existing_data = pd.read_excel(filename)
-            df_combined = pd.concat([existing_data, self.historical_data.loc[self.current_year, :]])
-            df_combined.to_excel(filename, sheet_name=self.team.team_name.capitalize())
+            df_combined = pd.concat([existing_data, formatted_data])
+            df_combined.to_excel(filename, sheet_name=self.team.team_name.capitalize(), index=False)

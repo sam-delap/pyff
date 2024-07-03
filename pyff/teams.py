@@ -96,8 +96,8 @@ class Team:
         file_path = Path(filename)
         if not file_path.parent.exists: 
             file_path.parent.mkdir(parents=True)
-            self.historical_data.loc[self.current_year, :].to_excel(filename, sheet_name=self.team_name.capitalize())
+            self.historical_data.loc[self.current_year, :].to_excel(filename, sheet_name=self.team_name.capitalize(), index=False)
         else:
             existing_data = pd.read_excel(filename)
             df_combined = pd.concat([existing_data, self.historical_data.loc[self.current_year, :]])
-            df_combined.to_excel(filename, sheet_name=self.team_name.capitalize())
+            df_combined.to_excel(filename, sheet_name=self.team_name.capitalize(), index=False)
