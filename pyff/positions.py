@@ -23,6 +23,7 @@ class QB:
                    ]
         self.historical_data = pd.DataFrame(index=index, columns=columns)
         team_url = f'https://pro-football-reference.com/teams/{self.team.team_name}/{self.current_year}_roster.htm'
+        print(f'Fetching {self.current_year} team roster for {self.team.team_name}...')
         response = requests.get(team_url)
         time.sleep(6)
         if response.status_code != 200:
@@ -55,6 +56,7 @@ class QB:
         if player_url is None:
             raise ValueError('Player URL undefined')
 
+        print(f'Fetching stats for QB {player_name}...')
         response = requests.get(player_url)
         time.sleep(6)
         if response.status_code != 200:
@@ -123,16 +125,28 @@ class QB:
     def save_projections(self, filename: str):
         """Saves your team-level projection to a sheet"""
         file_path = Path(filename)
-        formatted_data = pd.DataFrame()
-        formatted_data['Player Name'] = self.player_name
-        formatted_data['Interception %'] = self.int_percent
-        formatted_data['Rush Share'] = self.rush_percent
-        formatted_data['Yards/Carry'] = self.ypc
-        formatted_data['TDs/Yard'] = self.td_yard_ratio
-        if not file_path.parent.exists: 
-            file_path.parent.mkdir(parents=True)
-            formatted_data.to_excel(filename, sheet_name=self.team.team_name.capitalize(), index=False)
-        else:
+        if file_path.parent.exists: 
             existing_data = pd.read_excel(filename)
+            print(existing_data)
+            if 'Player Name' in existing_data:
+                current_index = existing_data['Player Name'].size
+            else:
+                current_index = 1
+        else:
+            file_path.parent.mkdir(parents=True)
+            current_index = 1
+            
+        formatted_data = pd.DataFrame()
+        formatted_data.loc[current_index, 'Pos'] = 'QB'
+        formatted_data.loc[current_index, 'Player Name'] = self.player_name
+        formatted_data.loc[current_index, 'Interception %'] = self.int_percent
+        formatted_data.loc[current_index, 'Rush Share'] = self.rush_percent
+        formatted_data.loc[current_index, 'Yards/Carry'] = self.ypc
+        formatted_data.loc[current_index, 'TDs/Yard'] = self.td_yard_ratio
+        print(formatted_data)
+        if 'existing_data' in locals():
             df_combined = pd.concat([existing_data, formatted_data])
+            print(df_combined)
             df_combined.to_excel(filename, sheet_name=self.team.team_name.capitalize(), index=False)
+        else:
+            formatted_data.to_excel(filename, sheet_name=self.team.team_name.capitalize(), index=False)

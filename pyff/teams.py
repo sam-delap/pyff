@@ -33,6 +33,7 @@ class Team:
         self.historical_data = pd.DataFrame(index=index, columns=columns) 
         for year in self.historical_data.index:
             team_url = f'https://pro-football-reference.com/teams/{team_name}/{year}.htm'
+            print(f'Looking up {team_name} stats for {year}...')
             response = requests.get(team_url)
             time.sleep(6)
             if response.status_code != 200:
@@ -87,17 +88,29 @@ class Team:
             except ValueError:
                 print('This is not a valid decimal!')
 
-        self.historical_data.loc[self.current_year, 'total_plays'] = plays
-        self.historical_data.loc[self.current_year, 'run_percent'] = run_percent
-        self.historical_data.loc[self.current_year, 'pass_percent'] = pass_percent
+        self.total_plays = plays
+        self.run_percent = run_percent
+        self.pass_percent = pass_percent
 
     def save_projections(self, filename: str):
         """Saves your team-level projection to a sheet"""
         file_path = Path(filename)
         if not file_path.parent.exists: 
             file_path.parent.mkdir(parents=True)
-            self.historical_data.loc[self.current_year, :].to_excel(filename, sheet_name=self.team_name.capitalize(), index=False)
+            formatted_data.to_excel(filename, sheet_name=self.team_name.capitalize(), index=False)
+            current_index = 1
         else:
             existing_data = pd.read_excel(filename)
-            df_combined = pd.concat([existing_data, self.historical_data.loc[self.current_year, :]])
+            current_index = existing_data.shape[0]
+        formatted_data = pd.DataFrame()
+        formatted_data.loc[current_index, 'Total Plays'] = self.total_plays
+        formatted_data.loc[current_index, 'Run Plays'] = round(self.total_plays * self.run_percent / 100, 2)
+        formatted_data.loc[current_index, 'Pass Plays'] = round(self.total_plays * self.pass_percent / 100, 2)
+        print(formatted_data)
+        if current_index > 1:
+            print(existing_data)
+            df_combined = pd.concat([existing_data, formatted_data])
+            print(df_combined)
             df_combined.to_excel(filename, sheet_name=self.team_name.capitalize(), index=False)
+        else:
+            formatted_data.to_excel(filename, sheet_name=self.team_name.capitalize(), index=False)
