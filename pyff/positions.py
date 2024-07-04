@@ -350,7 +350,7 @@ class SkillPlayer:
                 rec_td = int(current_stat)
 
             current_stat = rushing_row.find(attrs={'data-stat':'rec_yds'}).get_text()
-            if current_stat == '':
+            if current_stat == '' or float(current_stat) == 0:
                 self.historical_data.loc[year, 'TDs/rec_yard'] = 0
             else:
                 self.historical_data.loc[year, 'TDs/rec_yard'] = rec_td / float(current_stat)   
@@ -374,7 +374,7 @@ class SkillPlayer:
                 rush_tds = int(current_stat)
 
             current_stat = rushing_row.find(attrs={'data-stat':'rush_yds'}).get_text()
-            if current_stat == '':
+            if current_stat == '' or float(current_stat) == 0:
                 self.historical_data.loc[year, 'tds/rush_yard'] = 0
             else:
                 self.historical_data.loc[year, 'tds/rush_yard'] = rush_tds / float(current_stat)
