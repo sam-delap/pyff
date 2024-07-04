@@ -204,9 +204,13 @@ class QB:
         if 'existing_data' in locals():
             df_combined = pd.concat([existing_data, formatted_data])
             print(df_combined)
-            df_combined.to_excel(filename, sheet_name=self.team.team_name.capitalize(), index=False)
+            with pd.ExcelWriter(filename, engine="openpyxl", mode="a", if_sheet_exists="replace") as writer:
+                print('Merging data in excel...')
+                df_combined.to_excel(writer, sheet_name=self.team.team_name.capitalize(), index=False)
         else:
-            formatted_data.to_excel(filename, sheet_name=self.team.team_name.capitalize(), index=False)
+            with pd.ExcelWriter(filename, engine="openpyxl", mode="a", if_sheet_exists="replace") as writer:
+                print('Saving new data in excel...')
+                formatted_data.to_excel(writer, sheet_name=self.team.team_name.capitalize(), index=False)
 
 class SkillPlayer:
     """Projection process for quarterbacks"""
@@ -493,6 +497,10 @@ class SkillPlayer:
         if 'existing_data' in locals():
             df_combined = pd.concat([existing_data, formatted_data])
             print(df_combined)
-            df_combined.to_excel(filename, sheet_name=self.team.team_name.capitalize(), index=False)
+            with pd.ExcelWriter(filename, engine="openpyxl", mode="a", if_sheet_exists="replace") as writer:
+                print('Merging data in excel...')
+                df_combined.to_excel(writer, sheet_name=self.team.team_name.capitalize(), index=False)
         else:
-            formatted_data.to_excel(filename, sheet_name=self.team.team_name.capitalize(), index=False)
+            with pd.ExcelWriter(filename, engine="openpyxl", mode="a", if_sheet_exists="replace") as writer:
+                print('Saving new data in excel...')
+                formatted_data.to_excel(writer, sheet_name=self.team.team_name.capitalize(), index=False)
