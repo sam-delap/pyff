@@ -130,7 +130,7 @@ class QB:
         need_answer = True
         while need_answer:
             try:
-                games_started = input('Estimated games started for 2024: ')
+                games_started = input('Estimated games played for 2024: ')
                 games_started = int(games_started)
                 need_answer = False
             except ValueError:
@@ -390,7 +390,7 @@ class SkillPlayer:
         need_answer = True
         while need_answer:
             try:
-                games_started = input('Estimated games started for 2024: ')
+                games_started = input('Estimated games played for 2024: ')
                 games_started = int(games_started)
                 need_answer = False
             except ValueError:
