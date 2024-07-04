@@ -37,6 +37,9 @@ def main(filename: str, teams: list[str]=["all"]) -> None:
                 "was"]
 
     for team_name in teams:
+        print(f'Now projecting {team_name}')
+        if not input(f'Would you like to project {team_name}? ') == 'y':
+            continue
         team = Team(team_name)
         if input(f'Do you need to do team-level projections for {team.team_name}? ') == 'y': 
             team.project()
