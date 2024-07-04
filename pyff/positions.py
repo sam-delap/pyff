@@ -15,6 +15,8 @@ class QB:
         self.current_year = date.today().year
         index = pd.Index(range(self.current_year - 3, self.current_year + 1))
         columns = ['team',
+                   'games played',
+                   'games started',
                    'pass_att',
                    'int %',
                    'pass td %',
@@ -77,14 +79,36 @@ class QB:
             raise requests.HTTPError(f'Request unsuccessful. Response code: {response.status_code}')
         doc = BeautifulSoup(response.text, 'html.parser')
     
+        rushing_table = doc.find('table', id='rushing_and_receiving')
+        if rushing_table is None:
+            print('Rushing/receiving table does not exist... assuming player is rookie')
+            self.projections_exist = True
+            return
+
         for year in range(self.current_year - 3, self.current_year):
             passing_row = doc.find('table', id='passing').find('tbody').find('tr', id=f'passing.{year}')
-            rushing_row = doc.find('table', id='rushing_and_receiving').find('tbody').find('tr', id=f'rushing_and_receiving.{year}')
+            rushing_row = rushing_table.find('tbody').find('tr', id=f'rushing_and_receiving.{year}')
+            if rushing_row is None or passing_row is None:
+                print(f'{self.player_name} does not have data for {year}')
+                continue
             current_stat = rushing_row.find(attrs={'data-stat':'team'}).get_text()
             if current_stat == '':
                 self.historical_data.loc[year, 'team'] = 'NA'
             else:
                 self.historical_data.loc[year, 'team'] = current_stat
+
+            current_stat = rushing_row.find(attrs={'data-stat':'g'}).get_text()
+            if current_stat == '':
+                self.historical_data.loc[year, 'games played'] = 'NA'
+            else:
+                self.historical_data.loc[year, 'games played'] = int(current_stat)
+
+            current_stat = rushing_row.find(attrs={'data-stat':'gs'}).get_text()
+            if current_stat == '':
+                self.historical_data.loc[year, 'games started'] = 'NA'
+            else:
+                self.historical_data.loc[year, 'games started'] = int(current_stat)
+
             self.historical_data.loc[year, 'pass_att'] = float(passing_row.find(attrs={'data-stat':'pass_att'}).get_text())
             self.historical_data.loc[year, 'int %'] = float(passing_row.find(attrs={'data-stat':'pass_int_perc'}).get_text())
             self.historical_data.loc[year, 'pass td %'] = float(passing_row.find(attrs={'data-stat':'pass_td_perc'}).get_text())
@@ -194,7 +218,9 @@ class SkillPlayer:
         self.position = pos
         self.current_year = date.today().year
         index = pd.Index(range(self.current_year - 3, self.current_year))
-        columns = ['team',
+        columns = ['games played',
+                   'games started',
+                   'team',
                    'target share',
                    'catch %',
                    'yards/catch',
@@ -281,6 +307,19 @@ class SkillPlayer:
                 self.historical_data.loc[year, 'team'] = 'NA'
             else:
                 self.historical_data.loc[year, 'team'] = current_stat
+
+            current_stat = rushing_row.find(attrs={'data-stat':'g'}).get_text()
+            if current_stat == '':
+                self.historical_data.loc[year, 'games played'] = 'NA'
+            else:
+                self.historical_data.loc[year, 'games played'] = int(current_stat)
+
+            current_stat = rushing_row.find(attrs={'data-stat':'gs'}).get_text()
+            if current_stat == '':
+                self.historical_data.loc[year, 'games started'] = 'NA'
+            else:
+                self.historical_data.loc[year, 'games started'] = int(current_stat)
+
             current_stat = rushing_row.find(attrs={'data-stat':'targets'}).get_text()
             if current_stat == '':
                 self.historical_data.loc[year, 'target share'] = 0

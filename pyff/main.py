@@ -38,7 +38,7 @@ def main(filename: str, teams: list[str]=["all"]) -> None:
 
     for team_name in teams:
         team = Team(team_name)
-        if input(f'Do you need to do projects for {team.team_name}?') == 'y': 
+        if input(f'Do you need to do team-level projections for {team.team_name}? ') == 'y': 
             team.project()
             team.save_projections(filename)
         project_teams_players(team, filename)
