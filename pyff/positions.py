@@ -122,6 +122,7 @@ class QB:
     def project(self):
         """Prompts the user to enter projections for the current season"""
         print(self.historical_data)
+        print('Average games played: ', self.historical_data['games played'].dropna(how="all").mean())
         print('Average int %: ', self.historical_data['int %'].drop(self.current_year).mean())
         print('Average rush %: ', self.historical_data['rush %'].drop(self.current_year).mean())
         print('Average ypc: ', self.historical_data['ypc'].drop(self.current_year).mean())
@@ -383,6 +384,7 @@ class SkillPlayer:
     def project(self):
         """Prompts the user to enter projections for the current season"""
         print(self.historical_data)
+        print('Average games played: ', self.historical_data['games played'].dropna(how="all").mean())
         print('Average target share: ', self.historical_data['target share'].dropna(how="all").mean())
         print('Average catch %: ', self.historical_data['catch %'].dropna(how="all").mean())
         print('Average yards/catch: ', self.historical_data['yards/catch'].dropna(how="all").mean())
