@@ -47,13 +47,13 @@ def main(filename: str, teams: list[str]=["all"]) -> None:
         fill_team_stats(team, filename)
 
 def project_teams_players(team: Team, filename: str) -> None:
-    if input(f'Do you need to do QB projections for {team.team_name}') == 'y':
+    if input(f'Do you need to do QB projections for {team.team_name}? ') == 'y':
         qb_prompt_loop(team, filename)
-    if input(f'Do you need to do WR projections for {team.team_name}') == 'y':
+    if input(f'Do you need to do WR projections for {team.team_name}? ') == 'y':
         wr_prompt_loop(team, filename)
-    if input(f'Do you need to do RB projections for {team.team_name}') == 'y':
+    if input(f'Do you need to do RB projections for {team.team_name}? ') == 'y':
         rb_prompt_loop(team, filename)
-    if input(f'Do you need to do TE projections for {team.team_name}') == 'y':
+    if input(f'Do you need to do TE projections for {team.team_name}? ') == 'y':
         te_prompt_loop(team, filename)
 
 def qb_prompt_loop(team: Team, filename: str) -> None:
