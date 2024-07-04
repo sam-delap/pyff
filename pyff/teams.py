@@ -5,6 +5,7 @@ import time
 
 from bs4 import BeautifulSoup
 import pandas as pd
+from openpyxl import load_workbook, Workbook
 
 pd.set_option('future.no_silent_downcasting', True)
 
@@ -95,22 +96,31 @@ class Team:
     def save_projections(self, filename: str):
         """Saves your team-level projection to a sheet"""
         file_path = Path(filename)
-        if not file_path.parent.exists: 
-            file_path.parent.mkdir(parents=True)
-            formatted_data.to_excel(filename, sheet_name=self.team_name.capitalize(), index=False)
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        if not file_path.exists():
+            workbook = Workbook()
+            workbook.create_sheet(self.team_name.capitalize())
+            workbook.save(file_path)
             current_index = 1
         else:
-            existing_data = pd.read_excel(filename)
-            current_index = existing_data.shape[0]
+            wb = load_workbook(filename)
+            if self.team_name.capitalize() not in wb.sheetnames:
+                wb.create_sheet(self.team_name.capitalize())
+                wb.save(filename)
+            existing_data = pd.read_excel(filename, sheet_name=self.team_name.capitalize())
+            current_index = existing_data.shape[0] + 1
         formatted_data = pd.DataFrame()
         formatted_data.loc[current_index, 'Total Plays'] = self.total_plays
         formatted_data.loc[current_index, 'Run Plays'] = round(self.total_plays * self.run_percent / 100, 2)
         formatted_data.loc[current_index, 'Pass Plays'] = round(self.total_plays * self.pass_percent / 100, 2)
-        print(formatted_data)
         if current_index > 1:
             print(existing_data)
             df_combined = pd.concat([existing_data, formatted_data])
             print(df_combined)
-            df_combined.to_excel(filename, sheet_name=self.team_name.capitalize(), index=False)
+            with pd.ExcelWriter(filename, engine="openpyxl", mode="a", if_sheet_exists="replace") as writer:
+                print('Merging data in excel...')
+                df_combined.to_excel(writer, sheet_name=self.team_name.capitalize(), index=False)
         else:
-            formatted_data.to_excel(filename, sheet_name=self.team_name.capitalize(), index=False)
+            with pd.ExcelWriter(filename, engine="openpyxl", mode="a", if_sheet_exists="replace") as writer:
+                print('Saving new data to excel...')
+                formatted_data.to_excel(writer, sheet_name=self.team_name.capitalize(), index=False)
