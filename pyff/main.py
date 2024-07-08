@@ -131,18 +131,19 @@ def fill_team_stats(team_name: str, filename: str):
     # Passing stats (QB-dependent)
     is_qb = team_df['Pos'] == 'QB'
     team_df.loc[is_qb, 'Passing Attempts'] = team_df.loc[is_qb, 'Games Started'] / 17 * pass_plays
-    print(team_df['Passing Attempts'])
-    team_df.loc[is_qb, 'Interceptions'] = team_df.loc[is_qb, 'Passing Attempts'] * team_df[is_qb, 'Interception %'] / 100
+    team_df.loc[is_qb, 'Interceptions'] = team_df['Passing Attempts'] * team_df['Interception %'] / 100
 
     # Passing stats (skill player-dependent)
-    team_df.loc[is_qb, 'Completions'] = team_df['Receptions'].sum() * team_df['Games Started'] / 17
+    team_df.loc[is_qb, 'Completions'] = team_df['Receptions'].sum() * team_df.loc[is_qb, 'Games Started'] / 17
     team_df.loc[is_qb, 'Completion %'] = team_df['Completions'] / team_df['Passing Attempts'] * 100
     if (team_df['Completion %'] > 70).any():
         print(f'Completion percentage too high for team {team_name}')
-    team_df.loc[is_qb, 'Passing Yards'] = team_df['Receiving Yards'].sum() * team_df['Games Started'] / 17
-    team_df.loc[is_qb, 'Passing TDs'] = team_df['Receiving TDs'].sum() * team_df['Games Started'] / 17
+    team_df.loc[is_qb, 'Passing Yards'] = team_df['Receiving Yards'].sum() * team_df.loc[is_qb, 'Games Started'] / 17
+    team_df.loc[is_qb, 'Passing TDs'] = team_df['Receiving TDs'].sum() * team_df.loc[is_qb, 'Games Started'] / 17
     team_df.loc[is_qb, 'Passing TD %'] = team_df['Passing TDs'] / team_df['Passing Attempts'] * 100
     if (team_df['Passing TD %'] > 8).any():
         print(f'Passing TD percentage too high for team {team_name}')
 
-    print(team_df.head(5))
+    with pd.ExcelWriter(filename, engine="openpyxl", mode="a", if_sheet_exists="replace") as writer:
+        print('Saving projections in excel...')
+        team_df.to_excel(writer, sheet_name=team_name.capitalize(), index=False)
