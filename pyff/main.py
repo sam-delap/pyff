@@ -164,7 +164,6 @@ def fill_team_stats(team_name: str, filename: str):
             + team_df['Passing TDs'].fillna(0) * PASS_TD
             )
 
-    print(team_df['Fantasy Points'])
     with pd.ExcelWriter(filename, engine="openpyxl", mode="a", if_sheet_exists="replace") as writer:
         print('Saving projections in excel...')
         team_df.to_excel(writer, sheet_name=team_name.capitalize(), index=False)
