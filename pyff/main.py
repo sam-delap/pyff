@@ -3,6 +3,39 @@ import pandas as pd
 from .teams import Team
 from .positions import QB, SkillPlayer
 
+ALL_TEAMS = ["crd",
+            "atl",
+            "rav",
+            "buf",
+            "car",
+            "chi",
+            "cin",
+            "cle",
+            "dal",
+            "den",
+            "det",
+            "gnb",
+            "htx",
+            "clt",
+            "jax",
+            "kan",
+            "rai",
+            "sdg",
+            "ram",
+            "mia",
+            "min",
+            "nwe",
+            "nor",
+            "nyg",
+            "nyj",
+            "phi",
+            "pit",
+            "sfo",
+            "sea",
+            "tam",
+            "oti",
+            "was"]
+
 # League-wide scoring settings
 PASS_TD = 6
 PASS_YD = 0.04
@@ -13,39 +46,7 @@ REC = 1
 
 def main(filename: str, teams: list[str]=["all"]) -> None:
     if teams[0] == "all":
-        teams = ["crd",
-                "atl",
-                "rav",
-                "buf",
-                "car",
-                "chi",
-                "cin",
-                "cle",
-                "dal",
-                "den",
-                "det",
-                "gnb",
-                "htx",
-                "clt",
-                "jax",
-                "kan",
-                "rai",
-                "sdg",
-                "ram",
-                "mia",
-                "min",
-                "nwe",
-                "nor",
-                "nyg",
-                "nyj",
-                "phi",
-                "pit",
-                "sfo",
-                "sea",
-                "tam",
-                "oti",
-                "was"]
-
+        teams = ALL_TEAMS
     for team_name in teams:
         if not input(f'Would you like to project team {team_name}? ') == 'y':
             continue
@@ -55,6 +56,8 @@ def main(filename: str, teams: list[str]=["all"]) -> None:
             team.save_projections(filename)
         project_teams_players(team, filename)
         fill_team_stats(team_name, filename)
+
+    create_fantasy_rankings(filename, teams)
 
 def project_teams_players(team: Team, filename: str) -> None:
     if input(f'Do you need to do QB projections for {team.team_name}? ') == 'y':
@@ -167,3 +170,19 @@ def fill_team_stats(team_name: str, filename: str):
     with pd.ExcelWriter(filename, engine="openpyxl", mode="a", if_sheet_exists="replace") as writer:
         print('Saving projections in excel...')
         team_df.to_excel(writer, sheet_name=team_name.capitalize(), index=False)
+
+def create_fantasy_rankings(filename: str, teams: list[str]=["all"]):
+    if teams[0] == "all":
+        teams = ALL_TEAMS
+    for pos in ['QB', 'WR', 'RB', 'TE']:
+        rankings_df = pd.DataFrame()
+        for team_name in teams:
+            current_team = pd.read_excel(filename, sheet_name=team_name.capitalize())
+            is_pos = current_team['Pos'] == pos
+            rankings_df = pd.concat([rankings_df, current_team.loc[is_pos, ['Player Name', 'Fantasy Points']]])
+
+        rankings_df.sort_values('Fantasy Points', ascending=False, inplace=True)
+
+        with pd.ExcelWriter(filename, engine="openpyxl", mode="a", if_sheet_exists="replace") as writer:
+            print(f'Saving {pos} rankings in excel...')
+            rankings_df.to_excel(writer, sheet_name=pos, index=False)
