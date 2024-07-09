@@ -3,6 +3,14 @@ import pandas as pd
 from .teams import Team
 from .positions import QB, SkillPlayer
 
+# League-wide scoring settings
+PASS_TD = 6
+PASS_YD = 0.04
+RUSH_REC_TD = 6
+RUSH_REC_YD =  0.1
+INTERCEPTION = -2
+REC = 1
+
 def main(filename: str, teams: list[str]=["all"]) -> None:
     if teams[0] == "all":
         teams = ["crd",
@@ -144,6 +152,19 @@ def fill_team_stats(team_name: str, filename: str):
     if (team_df['Passing TD %'] > 8).any():
         print(f'Passing TD percentage too high for team {team_name}')
 
+    # Fantasy points
+    team_df['Fantasy Points'] = (
+            team_df['Rushing Yards'].fillna(0) * RUSH_REC_YD
+            + team_df['Rushing TDs'].fillna(0) * RUSH_REC_TD
+            + team_df['Receptions'].fillna(0) * REC
+            + team_df['Receiving Yards'].fillna(0) * RUSH_REC_YD
+            + team_df['Receiving TDs'].fillna(0) * RUSH_REC_TD
+            + team_df['Interceptions'].fillna(0) * INTERCEPTION
+            + team_df['Passing Yards'].fillna(0) * PASS_YD
+            + team_df['Passing TDs'].fillna(0) * PASS_TD
+            )
+
+    print(team_df['Fantasy Points'])
     with pd.ExcelWriter(filename, engine="openpyxl", mode="a", if_sheet_exists="replace") as writer:
         print('Saving projections in excel...')
         team_df.to_excel(writer, sheet_name=team_name.capitalize(), index=False)
