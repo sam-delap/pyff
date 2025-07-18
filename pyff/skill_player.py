@@ -236,7 +236,6 @@ class SkillPlayer:
                     * 100
                 )
 
-            print(rushing_row)
             current_stat = rushing_row.find(attrs={"data-stat": "rush_yds_per_att"})
             if current_stat is not None:
                 current_stat = current_stat.get_text()
