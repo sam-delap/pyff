@@ -1,10 +1,8 @@
 """Test caching-related behaviors"""
 
 from datetime import date
-from pathlib import Path
 import shutil
 from pyff.teams import Team
-from pyff.positions import QB
 from pyff.caching import CACHE_DIR
 
 
