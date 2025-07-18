@@ -6,6 +6,7 @@ from bs4 import BeautifulSoup, Comment, Tag
 import pandas as pd
 from openpyxl import load_workbook
 from .teams import Team
+from .caching import load_file_cache, create_caching_path, cache_file
 
 CACHE_DIR = Path.home() / ".pyff"
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
@@ -35,15 +36,16 @@ class QB:
         team_url = f"https://pro-football-reference.com/teams/{self.team.team_name}/{self.current_year}_roster.htm"
 
         # Check if team data already cached
-        roster_file = (
+        roster_path = (
             CACHE_DIR / self.team.team_name / f"roster_{self.current_year}.html"
         )
-        if use_cache and roster_file.exists():
-            print(
-                f"Using cache for {self.current_year} team roster for {self.team.team_name}..."
+        # Pull from cache if using and cache hit
+        if use_cache and roster_path.exists():
+            roster_file = load_file_cache(
+                roster_path,
+                f"Using cache for {self.current_year} team roster for {self.team.team_name}...",
             )
-            with roster_file.open() as roster_raw:
-                doc = BeautifulSoup(roster_raw, "html.parser")
+            doc = BeautifulSoup(roster_file, "html.parser")
         else:
             # Fetch roster data from ProFootballReference if not cached
             print(
@@ -58,13 +60,17 @@ class QB:
                 )
 
             if save_results:
-                print(
-                    f"Saving ${self.current_year} team roster for {self.team.team_name}..."
+                create_caching_path(
+                    roster_path,
+                    f"Making new team-level folder to store info for {self.team.team_name}...",
                 )
-                with roster_file.open("w") as roster_writer:
-                    roster_writer.write(response.text)
+                cache_file(
+                    roster_path,
+                    response.text,
+                    f"Saving {self.current_year} team roster for {self.team.team_name}...",
+                )
 
-        doc = BeautifulSoup(response.text, "html.parser")
+            doc = BeautifulSoup(response.text, "html.parser")
 
         player_div: Tag = doc.find("div", id="all_roster")
 
