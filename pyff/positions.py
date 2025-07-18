@@ -56,7 +56,15 @@ class QB:
                 raise requests.HTTPError(
                     f"Request unsuccessful. Response code: {response.status_code}"
                 )
-            doc = BeautifulSoup(response.text, "html.parser")
+
+            if save_results:
+                print(
+                    f"Saving ${self.current_year} team roster for {self.team.team_name}..."
+                )
+                with roster_file.open("w") as roster_writer:
+                    roster_writer.write(response.text)
+
+        doc = BeautifulSoup(response.text, "html.parser")
 
         player_div: Tag = doc.find("div", id="all_roster")
 
