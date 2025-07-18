@@ -8,7 +8,7 @@ from openpyxl import load_workbook
 from .teams import Team
 
 CACHE_DIR = Path.home() / ".pyff"
-CACHE_DIR.mkdir(parents=True)
+CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 
 class QB:
