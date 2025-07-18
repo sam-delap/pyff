@@ -1,7 +1,8 @@
 """Helper Functions related to handling file caching"""
 
-from io import TextIOWrapper
 from pathlib import Path
+
+CACHE_DIR = Path.home() / ".pyff"
 
 
 def load_file_cache(file_path: Path, cache_message: str = "") -> str:
@@ -19,6 +20,7 @@ def create_caching_path(file_path: Path, cache_message: str = "") -> None:
 
 def cache_file(file_path: Path, file_contents: str, cache_message: str = "") -> None:
     """Creates a cache of a file"""
+    create_caching_path(file_path)
     print(cache_message)
     with file_path.open("w") as f:
         f.write(file_contents)

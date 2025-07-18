@@ -6,16 +6,13 @@ from bs4 import BeautifulSoup, Comment, Tag
 import pandas as pd
 from openpyxl import load_workbook
 from .teams import Team
-from .caching import load_file_cache, create_caching_path, cache_file
-
-CACHE_DIR = Path.home() / ".pyff"
-CACHE_DIR.mkdir(parents=True, exist_ok=True)
+from .caching import CACHE_DIR, load_file_cache, cache_file
 
 
 class QB:
     """Projection process for quarterbacks"""
 
-    def __init__(self, team: Team, save_results: bool = True, use_cache: bool = True):
+    def __init__(self, team: Team, use_cache: bool = True, save_results: bool = True):
         """Searches through QBs on a team's current roster until you want to project one, then collects historical data for the past 3 years about that player"""
         self.team = team
         self.current_year = date.today().year
@@ -41,11 +38,11 @@ class QB:
         )
         # Pull from cache if using and cache hit
         if use_cache and roster_path.exists():
-            roster_file = load_file_cache(
+            roster_data = load_file_cache(
                 roster_path,
                 f"Using cache for {self.current_year} team roster for {self.team.team_name}...",
             )
-            doc = BeautifulSoup(roster_file, "html.parser")
+            doc = BeautifulSoup(roster_data, "html.parser")
         else:
             # Fetch roster data from ProFootballReference if not cached
             print(
@@ -60,10 +57,6 @@ class QB:
                 )
 
             if save_results:
-                create_caching_path(
-                    roster_path,
-                    f"Making new team-level folder to store info for {self.team.team_name}...",
-                )
                 cache_file(
                     roster_path,
                     response.text,
