@@ -1,4 +1,5 @@
 from datetime import date
+from enum import Enum
 from pathlib import Path
 import requests
 import time
@@ -10,6 +11,15 @@ from openpyxl import load_workbook, Workbook
 from .caching import CACHE_DIR, load_file_cache, create_caching_path, cache_file
 
 pd.set_option("future.no_silent_downcasting", True)
+
+
+class Position(Enum):
+    """Position enum for more self-documenting and type-safe position refs"""
+
+    QB = "QB"
+    WR = "WR"
+    RB = "RB"
+    TE = "TE"
 
 
 class Team:

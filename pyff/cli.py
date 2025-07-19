@@ -1,7 +1,7 @@
 import pandas as pd
 import argparse
 
-from .teams import Team
+from .teams import Team, Position
 from .quarterback import QB
 from .skill_player import SkillPlayer
 
@@ -50,6 +50,7 @@ REC = 1
 
 
 def main(filename: str, teams: list[str] = ["all"]) -> None:
+    """Driver function"""
     if teams[0] == "all":
         teams = ALL_TEAMS
     for team_name in teams:
@@ -62,69 +63,41 @@ def main(filename: str, teams: list[str] = ["all"]) -> None:
         ):
             team.project()
             team.save_projections(filename)
-        project_teams_players(team, filename)
+        for position in Position:
+            project_position(team, filename, position)
         fill_team_stats(team_name, filename)
 
     create_fantasy_rankings(filename, teams)
 
 
-def project_teams_players(team: Team, filename: str) -> None:
-    if input(f"Do you need to do QB projections for {team.team_name}? ") == "y":
-        qb_prompt_loop(team, filename)
-    if input(f"Do you need to do WR projections for {team.team_name}? ") == "y":
-        wr_prompt_loop(team, filename)
-    if input(f"Do you need to do RB projections for {team.team_name}? ") == "y":
-        rb_prompt_loop(team, filename)
-    if input(f"Do you need to do TE projections for {team.team_name}? ") == "y":
-        te_prompt_loop(team, filename)
+def project_position(team: Team, filename: str, position: Position) -> None:
+    """Project a given position"""
+    if position == Position.QB:
+        player_class_to_create = QB
+    else:
+        player_class_to_create = SkillPlayer
+    if (
+        input(f"Do you need to do {position.value} projections for {team.team_name}? ")
+        == "y"
+    ):
+        should_continue = True
+        while should_continue:
+            project_player(player_class_to_create, team, position, filename)
+            should_continue = (
+                input(
+                    f"Would you like to project another {position.value} for {team.team_name}? "
+                )
+                == "y"
+            )
 
 
-def qb_prompt_loop(team: Team, filename: str) -> None:
-    should_continue = True
-    while should_continue:
-        qb = QB(team)
-        if qb.projections_exist:
-            qb.project()
-            qb.save_projections(filename)
-        should_continue = (
-            input(f"Would you like to project another QB for {team.team_name}? ") == "y"
-        )
-
-
-def wr_prompt_loop(team: Team, filename: str):
-    should_continue = True
-    while should_continue:
-        wr = SkillPlayer(team, "WR")
-        if wr.projections_exist:
-            wr.project()
-            wr.save_projections(filename)
-        should_continue = (
-            input(f"Would you like to project another WR for {team.team_name}? ") == "y"
-        )
-
-
-def rb_prompt_loop(team: Team, filename: str):
-    should_continue = True
-    while should_continue:
-        rb = SkillPlayer(team, "RB")
-        if rb.projections_exist:
-            rb.project()
-            rb.save_projections(filename)
-        should_continue = (
-            input(f"Would you like to project another RB for {team.team_name}? ") == "y"
-        )
-
-
-def te_prompt_loop(team: Team, filename: str):
-    should_continue = True
-    while should_continue:
-        te = SkillPlayer(team, "TE")
-        if te.projections_exist:
-            te.project()
-            te.save_projections(filename)
-        should_continue = (
-            input(f"Would you like to project another TE for {team.team_name}? ") == "y"
-        )
+def project_player(
+    player_class: type, team: Team, position: Position, filename: str
+) -> None:
+    player = player_class(team, position)
+    if player.projections_exist:
+        player.project()
+        player.save_projections(filename)
 
 
 def fill_team_stats(team_name: str, filename: str):

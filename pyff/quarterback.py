@@ -2,17 +2,24 @@ from datetime import date
 from pathlib import Path
 import requests
 import time
-from bs4 import BeautifulSoup, Comment, Tag
+from bs4 import BeautifulSoup, Comment, NavigableString, Tag
 import pandas as pd
 from openpyxl import load_workbook
-from .teams import Team
+from .teams import Team, Position
 from .caching import CACHE_DIR, load_file_cache, cache_file
 
 
 class QB:
     """Projection process for quarterbacks"""
 
-    def __init__(self, team: Team, use_cache: bool = True, save_results: bool = True):
+    # Position included to provide consistency across different implementations, not used for QB
+    def __init__(
+        self,
+        team: Team,
+        position: Position,
+        use_cache: bool = True,
+        save_results: bool = True,
+    ):
         """Searches through QBs on a team's current roster until you want to project one, then collects historical data for the past 3 years about that player"""
         self.team = team
         self.current_year = date.today().year
@@ -65,29 +72,61 @@ class QB:
 
             doc = BeautifulSoup(response.text, "html.parser")
 
-        player_div: Tag = doc.find("div", id="all_roster")
+        player_div = doc.find("div", id="all_roster")
+        if type(player_div) != Tag:
+            raise TypeError("Player div not found. Look at HTML")
 
+        # Find table of players
+        table_doc = None
         for d in player_div.descendants:
             if isinstance(d, Comment):
                 table_doc = BeautifulSoup(d.string, "html.parser")
 
-        table_rows = table_doc.find("tbody").find_all("tr")
+        if table_doc is None:
+            raise ValueError("Table not found")
+
+        table_body = table_doc.find("tbody")
+        if type(table_body) is not Tag:
+            print(type(table_body))
+            raise TypeError("Table body does not have expected type. Check HTML")
+
+        table_rows = table_body.find_all("tr")
+        if table_rows is None:
+            print(table_body)
+            raise ValueError("Table rows not found")
 
         print(f"Finding all QBs for {team.team_name}")
+        player_name = None
+        player_url = None
+        qbs = []
         for row in table_rows:
-            pos = row.find(attrs={"data-stat": "pos"}).get_text()
-            if pos != "QB":
+            if type(row) is not Tag:
+                print(type(row))
+                raise TypeError("Table row does not have expected type. Check HTML")
+
+            position_data = row.find(attrs={"data-stat": "pos"})
+            if position_data is None:
+                raise ValueError(
+                    f"Couldn't find value for player position using data-stat pos"
+                )
+
+            position_value = position_data.get_text()
+            if position_value not in Position:
+                # Log that this position isn't supported
                 continue
+
+            position = Position(position_value)
+            if position != Position.QB:
+                continue
+
             player_data = row.find(attrs={"data-stat": "player"})
+            if player_data is None:
+                raise ValueError("Cant find data for player")
             player_name = player_data.get_text()
             print(player_name)
+            qbs.append((player_name, player_data))
 
-        for row in table_rows:
-            pos = row.find(attrs={"data-stat": "pos"}).get_text()
-            if pos != "QB":
-                continue
-            player_data = row.find(attrs={"data-stat": "player"})
-            player_name = player_data.get_text()
+        for player_name, player_data in qbs:
             decision = (
                 input(f"Would you like to do projections for {player_name}? ").lower()
                 == "y"
@@ -98,13 +137,10 @@ class QB:
                 player_url = f"https://pro-football-reference.com{player_url_suffix}"
                 break
 
-        if "player_url" not in locals():
-            print("No projections will be done for this instance of QB")
+        if player_url is None or player_name is None:
+            print(f"No projections will be done for this instance of {position.value}")
             self.projections_exist = False
             return
-
-        if player_url is None:
-            raise ValueError("Player URL undefined")
 
         qb_path = CACHE_DIR / team.team_name / f"qb_{player_name.replace(' ', '')}.html"
 
@@ -133,13 +169,18 @@ class QB:
             print("Rushing/receiving table does not exist... assuming player is rookie")
             self.projections_exist = True
             return
+        assert type(rushing_table) == Tag
 
         for year in range(self.current_year - 3, self.current_year):
-            passing_row = (
-                doc.find("table", id="passing")
-                .find("tbody")
-                .find("tr", id=f"passing.{year}")
-            )
+            passing_table = doc.find("table", id="passing")
+            assert type(passing_table) == Tag
+
+            passing_table_body = passing_table.find("tbody")
+            assert type(passing_table_body) == Tag
+
+            passing_row = passing_table_body.find("tr", id=f"passing.{year}")
+            assert type(passing_row) == Tag
+
             rushing_row = rushing_table.find("tbody").find(
                 "tr", id=f"rushing_and_receiving.{year}"
             )
