@@ -220,7 +220,9 @@ class QB:
         need_answer = True
         while need_answer:
             try:
-                games_started = input("Estimated games played for 2024: ")
+                games_started = input(
+                    f"Estimated games played for {self.current_year}: "
+                )
                 games_started = int(games_started)
                 need_answer = False
             except ValueError:
@@ -228,7 +230,7 @@ class QB:
         need_answer = True
         while need_answer:
             try:
-                int_percent = input("Estimated int % for 2024: ")
+                int_percent = input(f"Estimated int % for {self.current_year}: ")
                 int_percent = float(int_percent)
                 need_answer = False
             except ValueError:
@@ -236,7 +238,7 @@ class QB:
         need_answer = True
         while need_answer:
             try:
-                rush_percent = input("Estimated rush % for 2024: ")
+                rush_percent = input(f"Estimated rush % for {self.current_year}: ")
                 rush_percent = float(rush_percent)
                 need_answer = False
             except ValueError:
@@ -244,7 +246,7 @@ class QB:
         need_answer = True
         while need_answer:
             try:
-                ypc = input("Estimated ypc for 2024: ")
+                ypc = input(f"Estimated ypc for {self.current_year}: ")
                 ypc = float(ypc)
                 need_answer = False
             except ValueError:
@@ -252,7 +254,9 @@ class QB:
         need_answer = True
         while need_answer:
             try:
-                td_yard_ratio = input("Estimated tds/rush_yard for 2024: ")
+                td_yard_ratio = input(
+                    f"Estimated tds/rush_yard for {self.current_year}: "
+                )
                 td_yard_ratio = float(td_yard_ratio)
                 need_answer = False
             except ValueError:
