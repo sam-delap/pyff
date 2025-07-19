@@ -1,12 +1,10 @@
 from datetime import date
 from pathlib import Path
-import requests
-import time
-from bs4 import BeautifulSoup, Comment, Tag
+from bs4 import BeautifulSoup, Tag
 import pandas as pd
 from openpyxl import load_workbook
 from .teams import Team, Positions
-from .caching import CACHE_DIR, load_file_cache, cache_file
+from .caching import CACHE_DIR, load_file_cache, cache_file, handle_request
 from .html_parsing import fetch_sub_tag, fetch_data_stat, fetch_specific_sub_tag
 from .user_prompting import prompt_for_stat
 
@@ -39,42 +37,8 @@ class QB:
             "tds/rush_yard",
         ]
         self.historical_data = pd.DataFrame(index=index, columns=columns)
-        team_url = f"https://pro-football-reference.com/teams/{self.team.team_name}/{self.current_year}_roster.htm"
 
-        # Check if team data already cached
-        roster_path = (
-            CACHE_DIR / self.team.team_name / f"roster_{self.current_year}.html"
-        )
-        # Pull from cache if using and cache hit
-        if use_cache and roster_path.exists():
-            roster_data = load_file_cache(
-                roster_path,
-                f"Using cache for {self.current_year} team roster for {self.team.team_name}...",
-            )
-            doc = BeautifulSoup(roster_data, "html.parser")
-        else:
-            # Fetch roster data from ProFootballReference if not cached
-            print(
-                f"Fetching {self.current_year} team roster for {self.team.team_name}..."
-            )
-
-            response = requests.get(team_url)
-            time.sleep(6)
-            if response.status_code != 200:
-                raise requests.HTTPError(
-                    f"Request unsuccessful. Response code: {response.status_code}"
-                )
-
-            if save_results:
-                cache_file(
-                    roster_path,
-                    response.text,
-                    f"Saving {self.current_year} team roster for {self.team.team_name}...",
-                )
-
-            doc = BeautifulSoup(response.text, "html.parser")
-
-        player_name, player_url = team.get_player(doc, position)
+        player_name, player_url = team.get_player(position)
 
         if player_url is None or player_name is None:
             print(f"No projections will be done for this instance of {position.value}")
@@ -90,14 +54,9 @@ class QB:
             )
             doc = BeautifulSoup(qb_data, "html.parser")
         else:
-            print(f"Fetching stats for QB {player_name}...")
-            response = requests.get(player_url)
-            time.sleep(6)
-            if response.status_code != 200:
-                raise requests.HTTPError(
-                    f"Request unsuccessful. Response code: {response.status_code}"
-                )
-
+            response = handle_request(
+                player_url, f"Fetching stats for QB {player_name}..."
+            )
             if save_results:
                 cache_file(
                     qb_path, response.text, f"Caching stats for QB {player_name}"
@@ -117,7 +76,8 @@ class QB:
         passing_table_body = fetch_sub_tag(passing_table, "tbody")
         rushing_table_body = fetch_sub_tag(rushing_table, "tbody")
 
-        for year in index:
+        # Slicing index here to avoid attempt to gather data for current year, which will always fail
+        for year in index[0:3]:
             passing_row = passing_table_body.find("tr", id=f"passing.{year}")
             rushing_row = rushing_table_body.find(
                 "tr", id=f"rushing_and_receiving.{year}"
@@ -166,7 +126,7 @@ class QB:
                 * 100
             )
             self.historical_data.loc[year, "ypc"] = fetch_data_stat(
-                rushing_row, "Yards per carry", "rushing_yds_per_att", stat_dtype=float
+                rushing_row, "Yards per carry", "rush_yds_per_att", stat_dtype=float
             )
 
             # Fetch rush TDs

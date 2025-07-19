@@ -31,10 +31,11 @@ def fetch_data_stat(
     """Find value for specific stat based on a given attribute from a table row"""
     stat_html = row.find(attrs={"data-stat": stat_html_attribute})
     if stat_html is None:
-        print(row)
-        raise ValueError(
-            f"Couldn't find value for {stat_identifier} using data-stat {stat_html_attribute}. Check HTML."
+        # Add debug logging to notify that the HTML was not found
+        print(
+            f"Did not find stat {stat_identifier} using attribute {stat_html_attribute}"
         )
+        return stat_default_value
     assert type(stat_html) == Tag
     if return_html:
         return stat_html
@@ -45,4 +46,19 @@ def fetch_data_stat(
         # Not doing typecasting here to support default value of "NA" for all fields
         return stat_default_value
 
-    return stat_dtype(stat_value)
+    # Handles an edge case where a numeric field exists in the table
+    # but is empty
+    if stat_value == "" and stat_dtype in [int, float]:
+        print(f"Value empty for {stat_identifier}. Substituting 0")
+        stat_value = 0
+
+    # Enhanced debugging if type conversion fails
+    try:
+        stat_typed = stat_dtype(stat_value)
+    except ValueError as e:
+        print(stat_html)
+        print()
+        print(stat_value)
+        raise e
+
+    return stat_typed
