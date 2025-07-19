@@ -9,21 +9,27 @@ import time
 from bs4 import BeautifulSoup, Comment, Tag
 import pandas as pd
 from openpyxl import load_workbook
-from .teams import Team
+from .teams import Team, Positions
 from .caching import CACHE_DIR, load_file_cache, cache_file
+from .html_parsing import fetch_sub_tag, fetch_data_stat, fetch_specific_sub_tag
+from .user_prompting import prompt_for_stat
 
 
 class SkillPlayer:
     """Parent class for non-quarterbacks"""
 
     def __init__(
-        self, team: Team, pos: str, use_cache: bool = True, save_results: bool = True
+        self,
+        team: Team,
+        position: Positions,
+        use_cache: bool = True,
+        save_results: bool = True,
     ):
-        """Searches through QBs on a team's current roster until you want to project one, then collects historical data for the past 3 years about that player"""
-        if pos not in ["RB", "WR", "TE"]:
+        """Searches through skill players on a team's current roster until you want to project one, then collects historical data for the past 3 years about that player"""
+        if position not in [Positions.RB, Positions.RB, Positions.WR]:
             raise ValueError("Position must be one of RB, WR, or TE")
         self.team = team
-        self.position = pos
+        self.position = position
         self.current_year = date.today().year
         index = pd.Index(range(self.current_year - 3, self.current_year))
         columns = [
@@ -70,61 +76,28 @@ class SkillPlayer:
                 )
             doc = BeautifulSoup(response.text, "html.parser")
 
-        player_div: Tag = doc.find("div", id="all_roster")
+        player_name, player_url = team.get_player(doc, position)
 
-        for d in player_div.descendants:
-            if isinstance(d, Comment):
-                table_doc = BeautifulSoup(d.string, "html.parser")
-
-        table_rows = table_doc.find("tbody").find_all("tr")
-
-        print(f"Finding all {self.position}s for {team.team_name}")
-        for row in table_rows:
-            pos = row.find(attrs={"data-stat": "pos"}).get_text()
-            if pos != self.position:
-                continue
-            player_data = row.find(attrs={"data-stat": "player"})
-            player_name = player_data.get_text()
-            print(player_name)
-
-        for row in table_rows:
-            pos = row.find(attrs={"data-stat": "pos"}).get_text()
-            if pos != self.position:
-                continue
-            player_data = row.find(attrs={"data-stat": "player"})
-            player_name = player_data.get_text()
-            decision = (
-                input(f"Would you like to do projections for {player_name}? ").lower()
-                == "y"
-            )
-            if decision:
-                self.player_name = player_name
-                player_url_suffix = player_data.find("a").get("href")
-                player_url = f"https://pro-football-reference.com{player_url_suffix}"
-                break
-
-        if "player_url" not in locals():
-            print("Skipping projections for the current player instance")
+        if player_name is None or player_url is None:
+            print(f"No projections will be done for this instance of {position.value}")
             self.projections_exist = False
             return
 
-        if player_url is None:
-            raise ValueError("Player URL undefined")
-
+        self.player_name = player_name
         player_cache_path = (
             CACHE_DIR
             / team.team_name
-            / f"{self.position}_{player_name.replace(' ', '')}.html"
+            / f"{self.position}_{self.player_name.replace(' ', '')}.html"
         )
 
         if use_cache and player_cache_path.exists():
             player_cache_data = load_file_cache(
                 player_cache_path,
-                f"Loading cached stats for {self.position} {player_name}...",
+                f"Loading cached stats for {self.position} {self.player_name}...",
             )
             doc = BeautifulSoup(player_cache_data, "html.parser")
         else:
-            print(f"Fetching stats for {self.position} {player_name}...")
+            print(f"Fetching stats for {self.position} {self.player_name}...")
             response = requests.get(player_url)
             time.sleep(6)
             if response.status_code != 200:
@@ -148,119 +121,131 @@ class SkillPlayer:
             search_str = "receiving_and_rushing"
         else:
             search_str = "rushing_and_receiving"
+
         if rushing_table is None:
             print("Rushing/receiving table does not exist... assuming player is rookie")
             self.projections_exist = True
             return
 
-        for year in range(self.current_year - 3, self.current_year):
-            print(f"Finding stats for {self.player_name} in {year}...")
-            rushing_row = rushing_table.find("tbody").find(
-                "tr", id=f"{search_str}.{year}"
-            )
+        assert type(rushing_table) == Tag
+        rushing_table_body = fetch_sub_tag(rushing_table, "tbody")
+
+        for year in index:
+            rushing_row = rushing_table_body.find("tr", id=f"{search_str}.{year}")
             if rushing_row is None:
                 print(f"{self.player_name} does not have data for {year}")
                 continue
 
-            current_stat = rushing_row.find(
-                attrs={"data-stat": "team_name_abbr"}
-            ).get_text()
-            if current_stat == "":
-                self.historical_data.loc[year, "team"] = "NA"
-            else:
-                self.historical_data.loc[year, "team"] = current_stat
-
-            current_stat = rushing_row.find(attrs={"data-stat": "games"}).get_text()
-            if current_stat == "":
-                self.historical_data.loc[year, "games played"] = "NA"
-            else:
-                self.historical_data.loc[year, "games played"] = int(current_stat)
-
-            current_stat = rushing_row.find(
-                attrs={"data-stat": "games_started"}
-            ).get_text()
-            if current_stat == "":
-                self.historical_data.loc[year, "games started"] = "NA"
-            else:
-                self.historical_data.loc[year, "games started"] = int(current_stat)
-
-            current_stat = rushing_row.find(attrs={"data-stat": "targets"}).get_text()
-            if current_stat == "":
-                self.historical_data.loc[year, "target share"] = 0
-            else:
-                self.historical_data.loc[year, "target share"] = (
-                    float(current_stat)
-                    / self.team.historical_data.loc[year, "pass_plays"]
-                    * 100
-                )
-
-            current_stat = (
-                rushing_row.find(attrs={"data-stat": "catch_pct"})
-                .get_text()
-                .rstrip("%")
+            assert type(rushing_row) == Tag
+            self.historical_data.loc[year, "team"] = fetch_data_stat(
+                rushing_row, "Team Name", "team_name_abbr", stat_default_value="NA"
             )
-            if current_stat == "":
-                self.historical_data.loc[year, "catch %"] = 0
-            else:
-                self.historical_data.loc[year, "catch %"] = float(current_stat)
+            self.historical_data.loc[year, "games played"] = fetch_data_stat(
+                rushing_row,
+                "Games Played",
+                "games",
+                stat_default_value="NA",
+                stat_dtype=int,
+            )
+            self.historical_data.loc[year, "games started"] = fetch_data_stat(
+                rushing_row,
+                "Games Started",
+                "games_started",
+                stat_default_value="NA",
+                stat_dtype=int,
+            )
+            self.historical_data.loc[year, "target share"] = (
+                fetch_data_stat(
+                    rushing_row,
+                    "targets",
+                    "targets",
+                    stat_default_value=0,
+                    stat_dtype=float,
+                )
+                / self.team.historical_data.loc[year, "pass_plays"]
+                * 100
+            )
+            catch_percentage = fetch_data_stat(
+                rushing_row, "catch percentage", "catch_pct", stat_default_value=0
+            )
+            if catch_percentage != 0:
+                assert type(catch_percentage) == str
+                catch_percentage = float(catch_percentage.rstrip("%"))
+            self.historical_data.loc[year, "catch %"] = catch_percentage
 
-            current_stat = rushing_row.find(
-                attrs={"data-stat": "rec_yds_per_rec"}
-            ).get_text()
-            if current_stat == "":
-                self.historical_data.loc[year, "yards/catch"] = 0
-            else:
-                self.historical_data.loc[year, "yards/catch"] = float(current_stat)
+            self.historical_data.loc[year, "yards/catch"] = fetch_data_stat(
+                rushing_row,
+                "yards per catch",
+                "rec_yds_per_rec",
+                stat_default_value=0,
+                stat_dtype=float,
+            )
 
-            current_stat = rushing_row.find(attrs={"data-stat": "rec_td"}).get_text()
-            if current_stat == "":
-                rec_td = 0
-            else:
-                rec_td = int(current_stat)
-
-            current_stat = rushing_row.find(attrs={"data-stat": "rec_yds"}).get_text()
-            if current_stat == "" or float(current_stat) == 0:
+            rec_yds = fetch_data_stat(
+                rushing_row,
+                "receiving yards",
+                "rec_yds",
+                stat_default_value=0,
+                stat_dtype=float,
+            )
+            assert type(rec_yds) == float
+            # Need to do this to avoid a divide by 0 error
+            if rec_yds <= 0:
                 self.historical_data.loc[year, "TDs/rec_yard"] = 0
             else:
-                self.historical_data.loc[year, "TDs/rec_yard"] = rec_td / float(
-                    current_stat
+                rec_td = fetch_data_stat(
+                    rushing_row,
+                    "receiving touchdowns",
+                    "rec_td",
+                    stat_default_value=0,
+                    stat_dtype=int,
                 )
+                assert type(rec_td) == int
+                self.historical_data.loc[year, "TDs/rec_yard"] = rec_td / rec_yds
 
-            current_stat = rushing_row.find(attrs={"data-stat": "rush_att"}).get_text()
-            if current_stat == "":
-                self.historical_data.loc[year, "rush share"] = 0
-            else:
-                self.historical_data.loc[year, "rush share"] = (
-                    float(current_stat)
-                    / self.team.historical_data.loc[year, "run_plays"]
-                    * 100
-                )
+            rushing_attempts = fetch_data_stat(
+                rushing_row,
+                "rushing attempts",
+                "rush_att",
+                stat_default_value=0,
+                stat_dtype=float,
+            )
+            assert type(rushing_attempts) == float
+            self.historical_data.loc[year, "rush share"] = (
+                rushing_attempts
+                / self.team.historical_data.loc[year, "run_plays"]
+                * 100
+            )
 
-            current_stat = rushing_row.find(attrs={"data-stat": "rush_yds_per_att"})
-            if current_stat is not None:
-                current_stat = current_stat.get_text()
-            else:
-                print("No data for stat rush_yds_per_att")
-                current_stat = ""
+            self.historical_data.loc[year, "ypc"] = fetch_data_stat(
+                rushing_row,
+                "yards per carry",
+                "rush_yds_per_att",
+                stat_default_value=0,
+                stat_dtype=float,
+            )
 
-            if current_stat == "":
-                self.historical_data.loc[year, "ypc"] = 0
-            else:
-                self.historical_data.loc[year, "ypc"] = float(current_stat)
-
-            current_stat = rushing_row.find(attrs={"data-stat": "rush_td"}).get_text()
-            if current_stat == "":
-                rush_tds = 0
-            else:
-                rush_tds = int(current_stat)
-
-            current_stat = rushing_row.find(attrs={"data-stat": "rush_yds"}).get_text()
-            if current_stat == "" or float(current_stat) == 0:
+            rush_yds = fetch_data_stat(
+                rushing_row,
+                "rushing yards",
+                "rush_yds",
+                stat_default_value=0,
+                stat_dtype=float,
+            )
+            assert type(rush_yds) == float
+            # Need to do this to avoid a divide by 0 error
+            if rush_yds <= 0:
                 self.historical_data.loc[year, "tds/rush_yard"] = 0
             else:
-                self.historical_data.loc[year, "tds/rush_yard"] = rush_tds / float(
-                    current_stat
+                rush_td = fetch_data_stat(
+                    rushing_row,
+                    "rushing touchdowns",
+                    "rush_td",
+                    stat_default_value=0,
+                    stat_dtype=int,
                 )
+                assert type(rush_td) == int
+                self.historical_data.loc[year, "tds/rush_yard"] = rush_td / rush_yds
 
         self.projections_exist = True
 
@@ -297,89 +282,24 @@ class SkillPlayer:
             self.historical_data["tds/rush_yard"].dropna(how="all").mean(),
         )
         print()
-        need_answer = True
-        while need_answer:
-            try:
-                games_started = input(
-                    f"Estimated games played for {self.current_year}: "
-                )
-                games_started = int(games_started)
-                need_answer = False
-            except ValueError:
-                print("This is not a valid integer!")
-        need_answer = True
-        while need_answer:
-            try:
-                target_share = input(
-                    f"Estimated target share for {self.current_year}: "
-                )
-                target_share = float(target_share)
-                need_answer = False
-            except ValueError:
-                print("This is not a valid decimal!")
-        need_answer = True
-        while need_answer:
-            try:
-                catch_percent = input(f"Estimated catch % for {self.current_year}: ")
-                catch_percent = float(catch_percent)
-                need_answer = False
-            except ValueError:
-                print("This is not a valid decimal!")
-        need_answer = True
-        while need_answer:
-            try:
-                yds_per_catch = input(
-                    f"Estimated yards per catch for {self.current_year}: "
-                )
-                yds_per_catch = float(yds_per_catch)
-                need_answer = False
-            except ValueError:
-                print("This is not a valid decimal!")
-        need_answer = True
-        while need_answer:
-            try:
-                tds_per_rec_yd = input(
-                    f"Estimated TDs/rec_yard for {self.current_year}: "
-                )
-                tds_per_rec_yd = float(tds_per_rec_yd)
-                need_answer = False
-            except ValueError:
-                print("This is not a valid decimal!")
-        need_answer = True
-        while need_answer:
-            try:
-                rush_percent = input(f"Estimated rush share for {self.current_year}: ")
-                rush_percent = float(rush_percent)
-                need_answer = False
-            except ValueError:
-                print("This is not a valid decimal!")
-        need_answer = True
-        while need_answer:
-            try:
-                ypc = input(f"Estimated ypc for {self.current_year}: ")
-                ypc = float(ypc)
-                need_answer = False
-            except ValueError:
-                print("This is not a valid decimal!")
-        need_answer = True
-        while need_answer:
-            try:
-                td_yard_ratio = input(
-                    f"Estimated tds/rush_yard for {self.current_year}: "
-                )
-                td_yard_ratio = float(td_yard_ratio)
-                need_answer = False
-            except ValueError:
-                print("This is not a valid decimal!")
-
-        self.games_started = games_started
-        self.target_share = target_share
-        self.catch_percent = catch_percent
-        self.yds_per_catch = yds_per_catch
-        self.tds_per_rec_yd = tds_per_rec_yd
-        self.rush_percent = rush_percent
-        self.ypc = ypc
-        self.td_yard_ratio = td_yard_ratio
+        self.games_played = prompt_for_stat("games played", int, self.current_year)
+        self.target_share = prompt_for_stat("target share", float, self.current_year)
+        self.catch_percentage = prompt_for_stat(
+            "catch percentage", float, self.current_year
+        )
+        self.yards_per_catch = prompt_for_stat(
+            "yards per catch", float, self.current_year
+        )
+        self.tds_per_rec_yd = prompt_for_stat(
+            "receiving TDs per receiving yd", float, self.current_year
+        )
+        self.rush_share = prompt_for_stat("rushing share", float, self.current_year)
+        self.yards_per_carry = prompt_for_stat(
+            "yards per carry", float, self.current_year
+        )
+        self.tds_per_rush_yd = prompt_for_stat(
+            "Rushing TDs per rush yd", float, self.current_year
+        )
 
     def save_projections(self, filename: str):
         """Saves your player projection to a sheet"""
@@ -403,14 +323,14 @@ class SkillPlayer:
         formatted_data = pd.DataFrame()
         formatted_data.loc[current_index, "Pos"] = self.position
         formatted_data.loc[current_index, "Player Name"] = self.player_name
-        formatted_data.loc[current_index, "Games Started"] = self.games_started
+        formatted_data.loc[current_index, "Games Started"] = self.games_played
         formatted_data.loc[current_index, "Target Share"] = self.target_share
-        formatted_data.loc[current_index, "Catch Percentage"] = self.catch_percent
-        formatted_data.loc[current_index, "Yards/Catch"] = self.yds_per_catch
-        formatted_data.loc[current_index, "TDs/receiving yard"] = self.tds_per_rec_yd
-        formatted_data.loc[current_index, "Rush Share"] = self.rush_percent
-        formatted_data.loc[current_index, "Yards/Carry"] = self.ypc
-        formatted_data.loc[current_index, "TDs/Yard"] = self.td_yard_ratio
+        formatted_data.loc[current_index, "Catch Percentage"] = self.catch_percentage
+        formatted_data.loc[current_index, "Yards/Catch"] = self.yards_per_catch
+        formatted_data.loc[current_index, "TDs/Receiving Yard"] = self.tds_per_rec_yd
+        formatted_data.loc[current_index, "Rush Share"] = self.rush_share
+        formatted_data.loc[current_index, "Yards/Carry"] = self.yards_per_carry
+        formatted_data.loc[current_index, "TDs/Rush Yard"] = self.tds_per_rush_yd
         print(formatted_data)
         if "existing_data" in locals():
             df_combined = pd.concat([existing_data, formatted_data])

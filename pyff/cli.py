@@ -1,7 +1,7 @@
 import pandas as pd
 import argparse
 
-from .teams import Team, Position
+from .teams import Team, Positions
 from .quarterback import QB
 from .skill_player import SkillPlayer
 
@@ -63,16 +63,16 @@ def main(filename: str, teams: list[str] = ["all"]) -> None:
         ):
             team.project()
             team.save_projections(filename)
-        for position in Position:
+        for position in Positions:
             project_position(team, filename, position)
         fill_team_stats(team_name, filename)
 
     create_fantasy_rankings(filename, teams)
 
 
-def project_position(team: Team, filename: str, position: Position) -> None:
+def project_position(team: Team, filename: str, position: Positions) -> None:
     """Project a given position"""
-    if position == Position.QB:
+    if position == Positions.QB:
         player_class_to_create = QB
     else:
         player_class_to_create = SkillPlayer
@@ -92,7 +92,7 @@ def project_position(team: Team, filename: str, position: Position) -> None:
 
 
 def project_player(
-    player_class: type, team: Team, position: Position, filename: str
+    player_class: type, team: Team, position: Positions, filename: str
 ) -> None:
     player = player_class(team, position)
     if player.projections_exist:
@@ -115,7 +115,7 @@ def fill_team_stats(team_name: str, filename: str):
     if team_df.loc[other_players_index, "Rush Share"] < 0:
         print(f"Too many carries allocated for team {team_name}.")
     team_df.loc[other_players_index, "Yards/Carry"] = 4.2
-    team_df.loc[other_players_index, "TDs/Yard"] = 0.006
+    team_df.loc[other_players_index, "TDs/Rush Yard"] = 0.006
     team_df.loc[other_players_index, "Target Share"] = (
         100 - team_df["Target Share"].sum()
     )
@@ -123,19 +123,19 @@ def fill_team_stats(team_name: str, filename: str):
         print(f"Too many targets allocated for team {team_name}.")
     team_df.loc[other_players_index, "Catch Percentage"] = 62
     team_df.loc[other_players_index, "Yards/Catch"] = 11
-    team_df.loc[other_players_index, "TDs/receiving yard"] = 0.006
+    team_df.loc[other_players_index, "TDs/Receiving Yard"] = 0.006
 
     # Rushing stats
     team_df["Carries"] = team_df["Rush Share"] / 100 * run_plays
     team_df["Rushing Yards"] = team_df["Yards/Carry"] * team_df["Carries"]
-    team_df["Rushing TDs"] = team_df["Rushing Yards"] * team_df["TDs/Yard"]
+    team_df["Rushing TDs"] = team_df["Rushing Yards"] * team_df["TDs/Rush Yard"]
 
     # Receiving stats
     team_df["Targets"] = team_df["Target Share"] / 100 * pass_plays
     team_df["Receptions"] = team_df["Targets"] * team_df["Catch Percentage"] / 100
     team_df["Receiving Yards"] = team_df["Receptions"] * team_df["Yards/Catch"]
     team_df["Receiving TDs"] = (
-        team_df["Receiving Yards"] * team_df["TDs/receiving yard"]
+        team_df["Receiving Yards"] * team_df["TDs/Receiving Yard"]
     )
 
     # Passing stats (QB-dependent)

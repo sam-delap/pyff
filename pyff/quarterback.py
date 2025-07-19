@@ -2,11 +2,13 @@ from datetime import date
 from pathlib import Path
 import requests
 import time
-from bs4 import BeautifulSoup, Comment, NavigableString, Tag
+from bs4 import BeautifulSoup, Comment, Tag
 import pandas as pd
 from openpyxl import load_workbook
-from .teams import Team, Position
+from .teams import Team, Positions
 from .caching import CACHE_DIR, load_file_cache, cache_file
+from .html_parsing import fetch_sub_tag, fetch_data_stat, fetch_specific_sub_tag
+from .user_prompting import prompt_for_stat
 
 
 class QB:
@@ -16,7 +18,7 @@ class QB:
     def __init__(
         self,
         team: Team,
-        position: Position,
+        position: Positions,
         use_cache: bool = True,
         save_results: bool = True,
     ):
@@ -24,6 +26,7 @@ class QB:
         self.team = team
         self.current_year = date.today().year
         index = pd.Index(range(self.current_year - 3, self.current_year + 1))
+        print(index)
         columns = [
             "team",
             "games played",
@@ -72,76 +75,14 @@ class QB:
 
             doc = BeautifulSoup(response.text, "html.parser")
 
-        player_div = doc.find("div", id="all_roster")
-        if type(player_div) != Tag:
-            raise TypeError("Player div not found. Look at HTML")
-
-        # Find table of players
-        table_doc = None
-        for d in player_div.descendants:
-            if isinstance(d, Comment):
-                table_doc = BeautifulSoup(d.string, "html.parser")
-
-        if table_doc is None:
-            raise ValueError("Table not found")
-
-        table_body = table_doc.find("tbody")
-        if type(table_body) is not Tag:
-            print(type(table_body))
-            raise TypeError("Table body does not have expected type. Check HTML")
-
-        table_rows = table_body.find_all("tr")
-        if table_rows is None:
-            print(table_body)
-            raise ValueError("Table rows not found")
-
-        print(f"Finding all QBs for {team.team_name}")
-        player_name = None
-        player_url = None
-        qbs = []
-        for row in table_rows:
-            if type(row) is not Tag:
-                print(type(row))
-                raise TypeError("Table row does not have expected type. Check HTML")
-
-            position_data = row.find(attrs={"data-stat": "pos"})
-            if position_data is None:
-                raise ValueError(
-                    f"Couldn't find value for player position using data-stat pos"
-                )
-
-            position_value = position_data.get_text()
-            if position_value not in Position:
-                # Log that this position isn't supported
-                continue
-
-            position = Position(position_value)
-            if position != Position.QB:
-                continue
-
-            player_data = row.find(attrs={"data-stat": "player"})
-            if player_data is None:
-                raise ValueError("Cant find data for player")
-            player_name = player_data.get_text()
-            print(player_name)
-            qbs.append((player_name, player_data))
-
-        for player_name, player_data in qbs:
-            decision = (
-                input(f"Would you like to do projections for {player_name}? ").lower()
-                == "y"
-            )
-            if decision:
-                self.player_name = player_name
-                player_url_suffix = player_data.find("a").get("href")
-                player_url = f"https://pro-football-reference.com{player_url_suffix}"
-                break
+        player_name, player_url = team.get_player(doc, position)
 
         if player_url is None or player_name is None:
             print(f"No projections will be done for this instance of {position.value}")
             self.projections_exist = False
             return
 
+        self.player_name = player_name
         qb_path = CACHE_DIR / team.team_name / f"qb_{player_name.replace(' ', '')}.html"
 
         if use_cache and qb_path.exists():
@@ -164,6 +105,8 @@ class QB:
                 )
             doc = BeautifulSoup(response.text, "html.parser")
 
+        # Need to handle the parsing for this one separately to handle rookies
+        # Historical stat tables don't exist for rookies
         rushing_table = doc.find("table", id="rushing_and_receiving")
         if rushing_table is None:
             print("Rushing/receiving table does not exist... assuming player is rookie")
@@ -171,68 +114,75 @@ class QB:
             return
         assert type(rushing_table) == Tag
 
-        for year in range(self.current_year - 3, self.current_year):
-            passing_table = doc.find("table", id="passing")
-            assert type(passing_table) == Tag
+        passing_table = fetch_specific_sub_tag(doc, "table", "passing")
+        passing_table_body = fetch_sub_tag(passing_table, "tbody")
+        rushing_table_body = fetch_sub_tag(rushing_table, "tbody")
 
-            passing_table_body = passing_table.find("tbody")
-            assert type(passing_table_body) == Tag
-
+        for year in index:
             passing_row = passing_table_body.find("tr", id=f"passing.{year}")
-            assert type(passing_row) == Tag
-
-            rushing_row = rushing_table.find("tbody").find(
+            rushing_row = rushing_table_body.find(
                 "tr", id=f"rushing_and_receiving.{year}"
             )
+
             if rushing_row is None or passing_row is None:
                 print(f"{self.player_name} does not have data for {year}")
                 continue
-            current_stat = rushing_row.find(
-                attrs={"data-stat": "team_name_abbr"}
-            ).get_text()
-            if current_stat == "":
-                self.historical_data.loc[year, "team"] = "NA"
-            else:
-                self.historical_data.loc[year, "team"] = current_stat
 
-            current_stat = rushing_row.find(attrs={"data-stat": "games"}).get_text()
-            if current_stat == "":
-                self.historical_data.loc[year, "games played"] = "NA"
-            else:
-                self.historical_data.loc[year, "games played"] = int(current_stat)
-
-            current_stat = rushing_row.find(
-                attrs={"data-stat": "games_started"}
-            ).get_text()
-            if current_stat == "":
-                self.historical_data.loc[year, "games started"] = "NA"
-            else:
-                self.historical_data.loc[year, "games started"] = int(current_stat)
-
-            self.historical_data.loc[year, "pass_att"] = float(
-                passing_row.find(attrs={"data-stat": "pass_att"}).get_text()
+            assert type(passing_row) == Tag
+            assert type(rushing_row) == Tag
+            self.historical_data.loc[year, "team"] = fetch_data_stat(
+                rushing_row, "Team Name", "team_name_abbr", stat_default_value="NA"
             )
-            self.historical_data.loc[year, "int %"] = float(
-                passing_row.find(attrs={"data-stat": "pass_int_pct"}).get_text()
+            self.historical_data.loc[year, "games played"] = fetch_data_stat(
+                rushing_row,
+                "Games Played",
+                "games",
+                stat_default_value="NA",
+                stat_dtype=int,
             )
-            self.historical_data.loc[year, "pass td %"] = float(
-                passing_row.find(attrs={"data-stat": "pass_td_pct"}).get_text()
+            self.historical_data.loc[year, "games started"] = fetch_data_stat(
+                rushing_row,
+                "Games Started",
+                "games_started",
+                stat_default_value="NA",
+                stat_dtype=int,
             )
-            self.historical_data.loc[year, "comp %"] = float(
-                passing_row.find(attrs={"data-stat": "pass_cmp_pct"}).get_text()
+            self.historical_data.loc[year, "pass_att"] = fetch_data_stat(
+                passing_row, "Pass Attempts", "pass_att", stat_dtype=float
+            )
+            self.historical_data.loc[year, "int %"] = fetch_data_stat(
+                passing_row, "Interception %", "pass_int_pct", stat_dtype=float
+            )
+            self.historical_data.loc[year, "pass td %"] = fetch_data_stat(
+                passing_row, "Pass TD %", "pass_td_pct", stat_dtype=float
+            )
+            self.historical_data.loc[year, "comp %"] = fetch_data_stat(
+                passing_row, "Completion %", "pass_cmp_pct", stat_dtype=float
             )
             self.historical_data.loc[year, "rush %"] = (
-                float(rushing_row.find(attrs={"data-stat": "rush_att"}).get_text())
+                fetch_data_stat(
+                    rushing_row, "Rushing Attempts", "rush_att", stat_dtype=float
+                )
                 / self.team.historical_data.loc[year, "run_plays"]
                 * 100
             )
-            self.historical_data.loc[year, "ypc"] = float(
-                rushing_row.find(attrs={"data-stat": "rush_yds_per_att"}).get_text()
+            self.historical_data.loc[year, "ypc"] = fetch_data_stat(
+                rushing_row, "Yards per carry", "rushing_yds_per_att", stat_dtype=float
             )
-            self.historical_data.loc[year, "tds/rush_yard"] = int(
-                rushing_row.find(attrs={"data-stat": "rush_td"}).get_text()
-            ) / float(rushing_row.find(attrs={"data-stat": "rush_yds"}).get_text())
 
+            # Fetch rush TDs
+            rush_tds = fetch_data_stat(
+                rushing_row, "Rushing TDs", "rush_td", stat_dtype=int
+            )
+            assert type(rush_tds) == int
+
+            # Fetch rush yds
+            rush_yds = fetch_data_stat(
+                rushing_row, "Rushing Yards", "rush_yds", stat_dtype=float
+            )
+            assert type(rush_yds) == float
+
+            self.historical_data.loc[year, "tds/rush_yard"] = rush_tds / rush_yds
         self.projections_exist = True
 
     def project(self):
@@ -258,56 +208,14 @@ class QB:
             self.historical_data["tds/rush_yard"].drop(self.current_year).mean(),
         )
         print()
-        need_answer = True
-        while need_answer:
-            try:
-                games_started = input(
-                    f"Estimated games played for {self.current_year}: "
-                )
-                games_started = int(games_started)
-                need_answer = False
-            except ValueError:
-                print("This is not a valid integer!")
-        need_answer = True
-        while need_answer:
-            try:
-                int_percent = input(f"Estimated int % for {self.current_year}: ")
-                int_percent = float(int_percent)
-                need_answer = False
-            except ValueError:
-                print("This is not a valid decimal!")
-        need_answer = True
-        while need_answer:
-            try:
-                rush_percent = input(f"Estimated rush % for {self.current_year}: ")
-                rush_percent = float(rush_percent)
-                need_answer = False
-            except ValueError:
-                print("This is not a valid decimal!")
-        need_answer = True
-        while need_answer:
-            try:
-                ypc = input(f"Estimated ypc for {self.current_year}: ")
-                ypc = float(ypc)
-                need_answer = False
-            except ValueError:
-                print("This is not a valid decimal!")
-        need_answer = True
-        while need_answer:
-            try:
-                td_yard_ratio = input(
-                    f"Estimated tds/rush_yard for {self.current_year}: "
-                )
-                td_yard_ratio = float(td_yard_ratio)
-                need_answer = False
-            except ValueError:
-                print("This is not a valid decimal!")
 
-        self.games_started = games_started
-        self.int_percent = int_percent
-        self.rush_percent = rush_percent
-        self.ypc = ypc
-        self.td_yard_ratio = td_yard_ratio
+        self.games_played = prompt_for_stat("games played", int, self.current_year)
+        self.int_percent = prompt_for_stat("int %", float, self.current_year)
+        self.rush_percent = prompt_for_stat("rush %", float, self.current_year)
+        self.ypc = prompt_for_stat("ypc", float, self.current_year)
+        self.td_yard_ratio = prompt_for_stat(
+            "Rushing TDs/yard", float, self.current_year
+        )
 
     def save_projections(self, filename: str):
         """Saves your team-level projection to a sheet"""
@@ -332,7 +240,7 @@ class QB:
         formatted_data = pd.DataFrame()
         formatted_data.loc[current_index, "Pos"] = "QB"
         formatted_data.loc[current_index, "Player Name"] = self.player_name
-        formatted_data.loc[current_index, "Games Started"] = self.games_started
+        formatted_data.loc[current_index, "Games Played"] = self.games_played
         formatted_data.loc[current_index, "Interception %"] = self.int_percent
         formatted_data.loc[current_index, "Rush Share"] = self.rush_percent
         formatted_data.loc[current_index, "Yards/Carry"] = self.ypc
