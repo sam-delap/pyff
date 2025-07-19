@@ -300,7 +300,9 @@ class SkillPlayer:
         need_answer = True
         while need_answer:
             try:
-                games_started = input("Estimated games played for 2024: ")
+                games_started = input(
+                    f"Estimated games played for {self.current_year}: "
+                )
                 games_started = int(games_started)
                 need_answer = False
             except ValueError:
@@ -308,7 +310,9 @@ class SkillPlayer:
         need_answer = True
         while need_answer:
             try:
-                target_share = input("Estimated target share for 2024: ")
+                target_share = input(
+                    f"Estimated target share for {self.current_year}: "
+                )
                 target_share = float(target_share)
                 need_answer = False
             except ValueError:
@@ -316,7 +320,7 @@ class SkillPlayer:
         need_answer = True
         while need_answer:
             try:
-                catch_percent = input("Estimated catch % for 2024: ")
+                catch_percent = input(f"Estimated catch % for {self.current_year}: ")
                 catch_percent = float(catch_percent)
                 need_answer = False
             except ValueError:
@@ -324,7 +328,9 @@ class SkillPlayer:
         need_answer = True
         while need_answer:
             try:
-                yds_per_catch = input("Estimated yards per catch for 2024: ")
+                yds_per_catch = input(
+                    f"Estimated yards per catch for {self.current_year}: "
+                )
                 yds_per_catch = float(yds_per_catch)
                 need_answer = False
             except ValueError:
@@ -332,7 +338,9 @@ class SkillPlayer:
         need_answer = True
         while need_answer:
             try:
-                tds_per_rec_yd = input("Estimated TDs/rec_yard for 2024: ")
+                tds_per_rec_yd = input(
+                    f"Estimated TDs/rec_yard for {self.current_year}: "
+                )
                 tds_per_rec_yd = float(tds_per_rec_yd)
                 need_answer = False
             except ValueError:
@@ -340,7 +348,7 @@ class SkillPlayer:
         need_answer = True
         while need_answer:
             try:
-                rush_percent = input("Estimated rush share for 2024: ")
+                rush_percent = input(f"Estimated rush share for {self.current_year}: ")
                 rush_percent = float(rush_percent)
                 need_answer = False
             except ValueError:
@@ -348,7 +356,7 @@ class SkillPlayer:
         need_answer = True
         while need_answer:
             try:
-                ypc = input("Estimated ypc for 2024: ")
+                ypc = input(f"Estimated ypc for {self.current_year}: ")
                 ypc = float(ypc)
                 need_answer = False
             except ValueError:
@@ -356,7 +364,9 @@ class SkillPlayer:
         need_answer = True
         while need_answer:
             try:
-                td_yard_ratio = input("Estimated tds/rush_yard for 2024: ")
+                td_yard_ratio = input(
+                    f"Estimated tds/rush_yard for {self.current_year}: "
+                )
                 td_yard_ratio = float(td_yard_ratio)
                 need_answer = False
             except ValueError:
