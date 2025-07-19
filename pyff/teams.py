@@ -244,7 +244,6 @@ class Team:
 
         table_body = fetch_sub_tag(table_doc, "tbody")
         table_rows = table_body.find_all("tr")
-        print(type(table_rows))
         if table_rows is None:
             print(table_body)
             raise ValueError("Table rows not found")
