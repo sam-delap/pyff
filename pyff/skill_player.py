@@ -4,14 +4,12 @@ Implementation of projection utils for skill-position players (non-QBs)
 
 from datetime import date
 from pathlib import Path
-import requests
-import time
-from bs4 import BeautifulSoup, Comment, Tag
+from bs4 import BeautifulSoup, Tag
 import pandas as pd
 from openpyxl import load_workbook
 from .teams import Team, Positions
-from .caching import CACHE_DIR, load_file_cache, cache_file
-from .html_parsing import fetch_sub_tag, fetch_data_stat, fetch_specific_sub_tag
+from .caching import CACHE_DIR, load_file_cache, cache_file, handle_request
+from .html_parsing import fetch_sub_tag, fetch_data_stat
 from .user_prompting import prompt_for_stat
 
 
@@ -26,7 +24,7 @@ class SkillPlayer:
         save_results: bool = True,
     ):
         """Searches through skill players on a team's current roster until you want to project one, then collects historical data for the past 3 years about that player"""
-        if position not in [Positions.RB, Positions.RB, Positions.WR]:
+        if position not in [Positions.RB, Positions.TE, Positions.WR]:
             raise ValueError("Position must be one of RB, WR, or TE")
         self.team = team
         self.position = position
@@ -45,38 +43,7 @@ class SkillPlayer:
             "tds/rush_yard",
         ]
         self.historical_data = pd.DataFrame(index=index, columns=columns)
-        team_url = f"https://pro-football-reference.com/teams/{self.team.team_name}/{self.current_year}_roster.htm"
-
-        roster_path = (
-            CACHE_DIR / self.team.team_name / f"roster_{self.current_year}.html"
-        )
-        # Pull from cache if using and cache hit
-        if use_cache and roster_path.exists():
-            roster_data = load_file_cache(
-                roster_path,
-                f"Using cache for {self.current_year} team roster for {self.team.team_name}...",
-            )
-            doc = BeautifulSoup(roster_data, "html.parser")
-        else:
-            print(
-                f"Fetching {self.current_year} team roster for {self.team.team_name}..."
-            )
-            response = requests.get(team_url)
-            time.sleep(6)
-            if response.status_code != 200:
-                raise requests.HTTPError(
-                    f"Request unsuccessful. Response code: {response.status_code}"
-                )
-
-            if save_results:
-                cache_file(
-                    roster_path,
-                    response.text,
-                    f"Caching {self.current_year} team roster for {self.team.team_name}...",
-                )
-            doc = BeautifulSoup(response.text, "html.parser")
-
-        player_name, player_url = team.get_player(doc, position)
+        player_name, player_url = team.get_player(position)
 
         if player_name is None or player_url is None:
             print(f"No projections will be done for this instance of {position.value}")
@@ -87,28 +54,25 @@ class SkillPlayer:
         player_cache_path = (
             CACHE_DIR
             / team.team_name
-            / f"{self.position}_{self.player_name.replace(' ', '')}.html"
+            / f"{self.position.value}_{self.player_name.replace(' ', '')}.html"
         )
 
         if use_cache and player_cache_path.exists():
             player_cache_data = load_file_cache(
                 player_cache_path,
-                f"Loading cached stats for {self.position} {self.player_name}...",
+                f"Loading cached stats for {self.position.value} {self.player_name}...",
             )
             doc = BeautifulSoup(player_cache_data, "html.parser")
         else:
-            print(f"Fetching stats for {self.position} {self.player_name}...")
-            response = requests.get(player_url)
-            time.sleep(6)
-            if response.status_code != 200:
-                raise requests.HTTPError(
-                    f"Request unsuccessful. Response code: {response.status_code}"
-                )
+            response = handle_request(
+                player_url,
+                f"Fetching stats for {self.position.value} {self.player_name}...",
+            )
             if save_results:
                 cache_file(
                     player_cache_path,
                     response.text,
-                    f"Caching stats for {self.position} {player_name}...",
+                    f"Caching stats for {self.position.value} {self.player_name}...",
                 )
             doc = BeautifulSoup(response.text, "html.parser")
 
@@ -321,7 +285,7 @@ class SkillPlayer:
             current_index = 2
 
         formatted_data = pd.DataFrame()
-        formatted_data.loc[current_index, "Pos"] = self.position
+        formatted_data.loc[current_index, "Pos"] = self.position.value
         formatted_data.loc[current_index, "Player Name"] = self.player_name
         formatted_data.loc[current_index, "Games Started"] = self.games_played
         formatted_data.loc[current_index, "Target Share"] = self.target_share

@@ -8,7 +8,7 @@ from bs4 import BeautifulSoup, Tag, Comment
 import pandas as pd
 from openpyxl import load_workbook, Workbook
 
-from .caching import CACHE_DIR, load_file_cache, cache_file
+from .caching import CACHE_DIR, load_file_cache, cache_file, handle_request
 from .html_parsing import fetch_sub_tag, fetch_data_stat, fetch_specific_sub_tag
 from .user_prompting import prompt_for_stat
 
@@ -60,17 +60,10 @@ class Team:
                 )
                 doc = BeautifulSoup(team_data, "html.parser")
             else:
-                team_url = (
-                    f"https://pro-football-reference.com/teams/{team_name}/{year}.htm"
+                response = handle_request(
+                    f"https://pro-football-reference.com/teams/{team_name}/{year}.htm",
+                    request_message=f"Looking up {team_name} stats for {year}...",
                 )
-                print(f"Looking up {team_name} stats for {year}...")
-                response = requests.get(team_url)
-                time.sleep(6)
-                if response.status_code != 200:
-                    raise requests.HTTPError(
-                        f"Request unsuccessful. Response code: {response.status_code}"
-                    )
-
                 if save_results:
                     cache_file(
                         team_path,
@@ -202,9 +195,36 @@ class Team:
                 )
 
     def get_player(
-        self, doc: Tag, requested_position: Positions
+        self,
+        requested_position: Positions,
+        use_cache: bool = True,
+        save_results: bool = True,
     ) -> tuple[str | None, str | None]:
         """Return a player to project given an HTML roster and position type to parse"""
+        # Check if team data already cached
+        roster_path = CACHE_DIR / self.team_name / f"roster_{self.current_year}.html"
+        # Pull from cache if using and cache hit
+        if use_cache and roster_path.exists():
+            roster_data = load_file_cache(
+                roster_path,
+                f"Using cache for {self.current_year} team roster for {self.team_name}...",
+            )
+            doc = BeautifulSoup(roster_data, "html.parser")
+        else:
+            # Fetch roster data from ProFootballReference if not cached
+            response = handle_request(
+                f"https://pro-football-reference.com/teams/{self.team_name}/{self.current_year}_roster.htm",
+                f"Fetching {self.current_year} team roster for {self.team_name}...",
+            )
+
+            if save_results:
+                cache_file(
+                    roster_path,
+                    response.text,
+                    f"Saving {self.current_year} team roster for {self.team_name}...",
+                )
+
+            doc = BeautifulSoup(response.text, "html.parser")
         players = self._find_players(doc, requested_position)
         return self._select_player(players)
 
