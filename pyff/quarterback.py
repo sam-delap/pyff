@@ -26,7 +26,6 @@ class QB:
         self.team = team
         self.current_year = date.today().year
         index = pd.Index(range(self.current_year - 3, self.current_year + 1))
-        print(index)
         columns = [
             "team",
             "games played",
