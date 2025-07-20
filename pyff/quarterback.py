@@ -199,11 +199,11 @@ class QB:
         formatted_data = pd.DataFrame()
         formatted_data.loc[current_index, "Pos"] = "QB"
         formatted_data.loc[current_index, "Player Name"] = self.player_name
-        formatted_data.loc[current_index, "Games Played"] = self.games_played
+        formatted_data.loc[current_index, "Games Started"] = self.games_played
         formatted_data.loc[current_index, "Interception %"] = self.int_percent
         formatted_data.loc[current_index, "Rush Share"] = self.rush_percent
         formatted_data.loc[current_index, "Yards/Carry"] = self.ypc
-        formatted_data.loc[current_index, "TDs/Yard"] = self.td_yard_ratio
+        formatted_data.loc[current_index, "TDs/Rush Yard"] = self.td_yard_ratio
         print(formatted_data)
         if "existing_data" in locals():
             df_combined = pd.concat([existing_data, formatted_data])

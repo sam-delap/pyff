@@ -130,11 +130,12 @@ class SkillPlayer:
                 * 100
             )
             catch_percentage = fetch_data_stat(
-                rushing_row, "catch percentage", "catch_pct", stat_default_value=0
+                rushing_row,
+                "catch percentage",
+                "catch_pct",
+                stat_default_value=0,
+                stat_dtype=float,
             )
-            if catch_percentage != 0:
-                assert type(catch_percentage) == str
-                catch_percentage = float(catch_percentage.rstrip("%"))
             self.historical_data.loc[year, "catch %"] = catch_percentage
 
             self.historical_data.loc[year, "yards/catch"] = fetch_data_stat(
