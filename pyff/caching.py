@@ -1,9 +1,7 @@
 """Helper Functions related to handling file caching"""
 
 from pathlib import Path
-import requests
 from selenium import webdriver
-import time
 
 CACHE_DIR = Path.home() / ".pyff"
 
