@@ -1,8 +1,7 @@
 """Helper Functions related to handling file caching"""
 
 from pathlib import Path
-import requests
-import time
+from selenium import webdriver
 
 CACHE_DIR = Path.home() / ".pyff"
 
@@ -33,13 +32,10 @@ def _print_cache_message(cache_message):
         print(cache_message)
 
 
-def handle_request(url: str, request_message: str = "") -> requests.Response:
+def handle_request(url: str, request_message: str = ""):
     """Handle a request with baked-in error handling and sleep to comply with PFR rate-limits"""
     _print_cache_message(request_message)
-    response = requests.get(url)
-    time.sleep(6)
-    if response.status_code != 200:
-        raise requests.HTTPError(
-            f"Request unsuccessful. Response code: {response.status_code}"
-        )
-    return response
+    browser = webdriver.Chrome()
+    browser.get(url)
+    return browser.page_source
+

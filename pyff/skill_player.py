@@ -64,17 +64,17 @@ class SkillPlayer:
             )
             doc = BeautifulSoup(player_cache_data, "html.parser")
         else:
-            response = handle_request(
+            page_source = handle_request(
                 player_url,
                 f"Fetching stats for {self.position.value} {self.player_name}...",
             )
             if save_results:
                 cache_file(
                     player_cache_path,
-                    response.text,
+                    page_source,
                     f"Caching stats for {self.position.value} {self.player_name}...",
                 )
-            doc = BeautifulSoup(response.text, "html.parser")
+            doc = BeautifulSoup(page_source, "html.parser")
 
         rushing_table = doc.find("table", id="rushing_and_receiving")
         if rushing_table is None:
