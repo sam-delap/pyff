@@ -60,17 +60,17 @@ class Team:
                 )
                 doc = BeautifulSoup(team_data, "html.parser")
             else:
-                response = handle_request(
+                page_source = handle_request(
                     f"https://pro-football-reference.com/teams/{team_name}/{year}.htm",
                     request_message=f"Looking up {team_name} stats for {year}...",
                 )
                 if save_results:
                     cache_file(
                         team_path,
-                        response.text,
+                        page_source,
                         f"Saving {team_name} stats for {year}...",
                     )
-                doc = BeautifulSoup(response.text, "html.parser")
+                doc = BeautifulSoup(page_source, "html.parser")
             if year != self.current_year:
                 table_body = fetch_sub_tag(doc, "tbody")
                 table_row = fetch_sub_tag(table_body, "tr")
@@ -212,7 +212,7 @@ class Team:
             doc = BeautifulSoup(roster_data, "html.parser")
         else:
             # Fetch roster data from ProFootballReference if not cached
-            response = handle_request(
+            page_source = handle_request(
                 f"https://pro-football-reference.com/teams/{self.team_name}/{self.current_year}_roster.htm",
                 f"Fetching {self.current_year} team roster for {self.team_name}...",
             )
@@ -220,11 +220,11 @@ class Team:
             if save_results:
                 cache_file(
                     roster_path,
-                    response.text,
+                    page_source,
                     f"Saving {self.current_year} team roster for {self.team_name}...",
                 )
 
-            doc = BeautifulSoup(response.text, "html.parser")
+            doc = BeautifulSoup(page_source, "html.parser")
         players = self._find_players(doc, requested_position)
         return self._select_player(players)
 

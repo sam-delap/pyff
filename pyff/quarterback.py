@@ -54,14 +54,14 @@ class QB:
             )
             doc = BeautifulSoup(qb_data, "html.parser")
         else:
-            response = handle_request(
+            page_source = handle_request(
                 player_url, f"Fetching stats for QB {player_name}..."
             )
             if save_results:
                 cache_file(
-                    qb_path, response.text, f"Caching stats for QB {player_name}"
+                    qb_path, page_source, f"Caching stats for QB {player_name}"
                 )
-            doc = BeautifulSoup(response.text, "html.parser")
+            doc = BeautifulSoup(page_source, "html.parser")
 
         # Need to handle the parsing for this one separately to handle rookies
         # Historical stat tables don't exist for rookies
