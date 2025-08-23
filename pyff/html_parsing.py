@@ -49,8 +49,8 @@ def fetch_data_stat(
     # Handles an edge case where a numeric field exists in the table
     # but is empty
     if stat_value == "" and stat_dtype in [int, float]:
-        print(f"Value empty for {stat_identifier}. Substituting 0")
-        stat_value = 0
+        print(f"Value empty for {stat_identifier}. Substituting default value")
+        return stat_default_value
 
     # Enhanced debugging if type conversion fails
     try:
