@@ -1,8 +1,6 @@
 from datetime import date
 from enum import Enum
 from pathlib import Path
-import requests
-import time
 
 from bs4 import BeautifulSoup, Tag, Comment
 import pandas as pd
